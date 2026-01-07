@@ -276,7 +276,12 @@ export interface DashboardSummary {
   avgGeminiQuota: number | null;
   avgGeminiImageQuota: number | null;
   avgClaudeQuota: number | null;
+  minGeminiQuota: number | null;
+  minGeminiImageQuota: number | null;
+  minClaudeQuota: number | null;
   lowQuotaCount: number;
+  rateLimitedCount: number;
+  exhaustedCount: number;
 }
 
 // ==================== Quota Window Types ====================

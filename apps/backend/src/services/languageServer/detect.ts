@@ -17,7 +17,7 @@ const DEFAULT_API_PATH = '/exa.language_server_pb.LanguageServerService/GetUserS
 const DEFAULT_HOST = '127.0.0.1';
 
 export async function detectLanguageServer(options: DetectOptions = {}): Promise<LanguageServerInfo | null> {
-  const { attempts = 3, baseDelay = 1500, verbose = false } = options;
+  const { attempts = 3, baseDelay = 1500, verbose = false, silent = false } = options;
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     if (verbose) {
@@ -42,7 +42,9 @@ export async function detectLanguageServer(options: DetectOptions = {}): Promise
     }
   }
 
-  console.log('[LS Detect] Language Server not found after all attempts');
+  if (!silent) {
+    console.log('[LS Detect] Language Server not found after all attempts');
+  }
   return null;
 }
 

@@ -24,6 +24,7 @@ import type {
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_API_PATH = '/exa.language_server_pb.LanguageServerService/GetUserStatus';
 const DEFAULT_POLLING_MS = 90000; // 90 seconds
+const RECONNECT_BACKOFF_MS = 60000; // 60 seconds backoff after failed detection
 
 export class LanguageServerService extends EventEmitter {
   private serverInfo: LanguageServerInfo | null = null;
@@ -33,6 +34,8 @@ export class LanguageServerService extends EventEmitter {
   private pollingInterval: NodeJS.Timeout | null = null;
   private pollingMs: number;
   private isConnecting: boolean = false;
+  private lastFailedAt: number | null = null;
+  private wasDisconnectedLogged: boolean = false;
 
   constructor(pollingMs: number = DEFAULT_POLLING_MS) {
     super();
@@ -55,9 +58,11 @@ export class LanguageServerService extends EventEmitter {
   /**
    * Attempt to connect to the Language Server
    */
-  async connect(verbose: boolean = false): Promise<boolean> {
+  async connect(verbose: boolean = false, silent: boolean = false): Promise<boolean> {
     if (this.isConnecting) {
-      console.log('[LS Service] Connection already in progress');
+      if (!silent) {
+        console.log('[LS Service] Connection already in progress');
+      }
       return false;
     }
 
@@ -65,29 +70,40 @@ export class LanguageServerService extends EventEmitter {
     this.lastError = null;
 
     try {
-      console.log('[LS Service] Detecting Language Server...');
-      const info = await detectLanguageServer({ verbose, attempts: 2 });
+      if (!silent) {
+        console.log('[LS Service] Detecting Language Server...');
+      }
+      const info = await detectLanguageServer({ verbose, attempts: 2, silent });
 
       if (info) {
         this.serverInfo = info;
         this.lastConnected = Date.now();
+        this.lastFailedAt = null;
+        this.wasDisconnectedLogged = false;
         console.log(`[LS Service] Connected to Language Server on port ${info.port}`);
         this.emit('connected', info);
         
-        // Fetch initial data
         await this.fetchQuota();
         
         return true;
       } else {
         this.lastError = 'Language Server not found';
-        console.log('[LS Service] Language Server not detected');
-        this.emit('disconnected', this.lastError);
+        this.lastFailedAt = Date.now();
+        
+        if (!this.wasDisconnectedLogged) {
+          console.log('[LS Service] Language Server not detected');
+          this.wasDisconnectedLogged = true;
+          this.emit('disconnected', this.lastError);
+        }
         return false;
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.lastError = message;
-      console.error('[LS Service] Connection error:', message);
+      this.lastFailedAt = Date.now();
+      if (!silent) {
+        console.error('[LS Service] Connection error:', message);
+      }
       this.emit('error', err);
       return false;
     } finally {
@@ -110,8 +126,10 @@ export class LanguageServerService extends EventEmitter {
    */
   async fetchQuota(): Promise<QuotaSnapshot | null> {
     if (!this.serverInfo) {
-      // Try to reconnect
-      const connected = await this.connect();
+      if (this.lastFailedAt && Date.now() - this.lastFailedAt < RECONNECT_BACKOFF_MS) {
+        return null;
+      }
+      const connected = await this.connect(false, true);
       if (!connected || !this.serverInfo) {
         return null;
       }

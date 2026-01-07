@@ -30,6 +30,8 @@ export interface DetectOptions {
   baseDelay?: number;
   /** Whether to enable verbose logging */
   verbose?: boolean;
+  /** Whether to suppress console output (for repeated polls) */
+  silent?: boolean;
 }
 
 /**

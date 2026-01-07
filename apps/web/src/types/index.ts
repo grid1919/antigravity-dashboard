@@ -336,7 +336,12 @@ export interface DashboardSummary {
   avgGeminiQuota: number | null;
   avgGeminiImageQuota: number | null;
   avgClaudeQuota: number | null;
-  lowQuotaCount: number;  // accounts with any quota < 20%
+  minGeminiQuota: number | null;
+  minGeminiImageQuota: number | null;
+  minClaudeQuota: number | null;
+  lowQuotaCount: number;
+  rateLimitedCount: number;
+  exhaustedCount: number;
 }
 
 /**

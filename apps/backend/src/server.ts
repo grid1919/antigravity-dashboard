@@ -512,33 +512,54 @@ app.get('/api/accounts/summary', (req, res) => {
     let geminiImageTotal = 0, geminiImageCount = 0;
     let claudeTotal = 0, claudeCount = 0;
     let lowQuotaCount = 0;
+    let rateLimitedCount = 0;
+    let exhaustedCount = 0;
+    
+    let geminiMin = 100, claudeMin = 100, geminiImageMin = 100;
     
     for (const quota of quotas) {
-      // Gemini Pro average
+      const account = accounts.find(a => a.email === quota.email);
+      
+      const isClaudeRateLimited = account?.rateLimits?.claude && !account.rateLimits.claude.isExpired;
+      const isGeminiRateLimited = account?.rateLimits?.gemini && !account.rateLimits.gemini.isExpired;
+      
       if (quota.geminiQuotaPercent !== null) {
-        geminiTotal += quota.geminiQuotaPercent;
+        const effectiveGemini = isGeminiRateLimited ? 0 : quota.geminiQuotaPercent;
+        geminiTotal += effectiveGemini;
         geminiCount++;
+        geminiMin = Math.min(geminiMin, effectiveGemini);
       }
       
-      // Claude average
       if (quota.claudeQuotaPercent !== null) {
-        claudeTotal += quota.claudeQuotaPercent;
+        const effectiveClaude = isClaudeRateLimited ? 0 : quota.claudeQuotaPercent;
+        claudeTotal += effectiveClaude;
         claudeCount++;
+        claudeMin = Math.min(claudeMin, effectiveClaude);
       }
       
-      // Gemini Image - find specific model
       const imageModel = quota.models.find(m => 
         m.modelName.toLowerCase().includes('image')
       );
       if (imageModel) {
         geminiImageTotal += imageModel.remainingPercent;
         geminiImageCount++;
+        geminiImageMin = Math.min(geminiImageMin, imageModel.remainingPercent);
       }
       
-      // Low quota check (<20% on any model)
+      if (isClaudeRateLimited || isGeminiRateLimited) {
+        rateLimitedCount++;
+      }
+      
+      const isClaudeExhausted = !isClaudeRateLimited && quota.claudeQuotaPercent !== null && quota.claudeQuotaPercent === 0;
+      const isGeminiExhausted = !isGeminiRateLimited && quota.geminiQuotaPercent !== null && quota.geminiQuotaPercent === 0;
+      
+      if (isClaudeExhausted || isGeminiExhausted) {
+        exhaustedCount++;
+      }
+      
       const hasLowQuota = 
-        (quota.claudeQuotaPercent !== null && quota.claudeQuotaPercent < 20) ||
-        (quota.geminiQuotaPercent !== null && quota.geminiQuotaPercent < 20);
+        (!isClaudeRateLimited && quota.claudeQuotaPercent !== null && quota.claudeQuotaPercent < 20 && quota.claudeQuotaPercent > 0) ||
+        (!isGeminiRateLimited && quota.geminiQuotaPercent !== null && quota.geminiQuotaPercent < 20 && quota.geminiQuotaPercent > 0);
       if (hasLowQuota) lowQuotaCount++;
     }
     
@@ -549,7 +570,12 @@ app.get('/api/accounts/summary', (req, res) => {
         avgGeminiQuota: geminiCount > 0 ? Math.round(geminiTotal / geminiCount) : null,
         avgGeminiImageQuota: geminiImageCount > 0 ? Math.round(geminiImageTotal / geminiImageCount) : null,
         avgClaudeQuota: claudeCount > 0 ? Math.round(claudeTotal / claudeCount) : null,
-        lowQuotaCount
+        minGeminiQuota: geminiCount > 0 ? geminiMin : null,
+        minGeminiImageQuota: geminiImageCount > 0 ? geminiImageMin : null,
+        minClaudeQuota: claudeCount > 0 ? claudeMin : null,
+        lowQuotaCount,
+        rateLimitedCount,
+        exhaustedCount
       }
     });
   } catch (error: any) {

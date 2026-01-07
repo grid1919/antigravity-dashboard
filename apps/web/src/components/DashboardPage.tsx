@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDashboardStore } from '../stores/useDashboardStore';
 import { useLanguageServer } from '../hooks/useLanguageServer';
-import { Users, Sparkles, Bot, ImageIcon, AlertTriangle, ArrowRight, Download, RefreshCw, CheckCircle, TrendingUp, Mail, Radio } from 'lucide-react';
+import { Users, Sparkles, Bot, ImageIcon, AlertTriangle, ArrowRight, Download, RefreshCw, CheckCircle, TrendingUp, Mail, Radio, Zap, User } from 'lucide-react';
 import { SubscriptionBadge } from './SubscriptionBadge';
 import { QuotaBar } from './QuotaPill';
 import { TimeWindowCard, useQuotaWindows } from './TimeWindowCard';
@@ -196,7 +196,7 @@ export function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [switching, setSwitching] = useState(false);
 
-  const { isConnected, lsClaudeQuota, lsGeminiQuota, forceRefresh: refreshLS } = useLanguageServer(30000);
+  const { isConnected, lsClaudeQuota, lsGeminiQuota, userInfo, forceRefresh: refreshLS } = useLanguageServer(30000);
 
   // Quota windows hook with live countdown
   const { data: quotaWindows, loading: quotaWindowsLoading, refresh: refreshQuotaWindows } = useQuotaWindows(30000);
@@ -304,7 +304,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Stats Grid */}
+      {/* Stats Grid - Always Fleet Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 animate-fade-in-up" style={{ animationDelay: '0ms' }}>
         <StatsCard
           icon={Users}
@@ -317,13 +317,13 @@ export function DashboardPage() {
           icon={Sparkles}
           iconColor="text-emerald-400"
           iconBg="bg-emerald-500/10"
-          value={isConnected && lsGeminiQuota !== null ? `${lsGeminiQuota}%` : (summary?.avgGeminiQuota != null ? `${summary.avgGeminiQuota}%` : '-')}
-          label={isConnected && lsGeminiQuota !== null ? "Gemini (Live)" : "Avg. Gemini"}
+          value={summary?.avgGeminiQuota != null ? `${summary.avgGeminiQuota}%` : '-'}
+          label="Avg. Gemini"
           status={(() => {
-            const quota = isConnected && lsGeminiQuota !== null ? lsGeminiQuota : summary?.avgGeminiQuota;
+            const quota = summary?.avgGeminiQuota;
             if (quota == null) return undefined;
             return {
-              text: quota >= 50 ? 'NOMINAL' : quota > 0 ? 'LOW RESERVE' : 'EXHAUSTED',
+              text: quota >= 50 ? 'FLEET OK' : quota > 0 ? 'LOW RESERVE' : 'EXHAUSTED',
               good: quota >= 50
             };
           })()}
@@ -335,7 +335,7 @@ export function DashboardPage() {
           value={summary?.avgGeminiImageQuota != null ? `${summary.avgGeminiImageQuota}%` : '-'}
           label="Avg. Imaging"
           status={summary?.avgGeminiImageQuota != null ? {
-            text: summary.avgGeminiImageQuota >= 50 ? 'NOMINAL' : 'LOW RESERVE',
+            text: summary.avgGeminiImageQuota >= 50 ? 'FLEET OK' : 'LOW RESERVE',
             good: summary.avgGeminiImageQuota >= 50
           } : undefined}
         />
@@ -343,13 +343,13 @@ export function DashboardPage() {
           icon={Bot}
           iconColor="text-cyan-400"
           iconBg="bg-cyan-500/10"
-          value={isConnected && lsClaudeQuota !== null ? `${lsClaudeQuota}%` : (summary?.avgClaudeQuota != null ? `${summary.avgClaudeQuota}%` : '-')}
-          label={isConnected && lsClaudeQuota !== null ? "Claude (Live)" : "Avg. Claude"}
+          value={summary?.avgClaudeQuota != null ? `${summary.avgClaudeQuota}%` : '-'}
+          label="Avg. Claude"
           status={(() => {
-            const quota = isConnected && lsClaudeQuota !== null ? lsClaudeQuota : summary?.avgClaudeQuota;
+            const quota = summary?.avgClaudeQuota;
             if (quota == null) return undefined;
             return {
-              text: quota >= 50 ? 'NOMINAL' : quota > 0 ? 'LOW RESERVE' : 'EXHAUSTED',
+              text: quota >= 50 ? 'FLEET OK' : quota > 0 ? 'LOW RESERVE' : 'EXHAUSTED',
               good: quota >= 50
             };
           })()}
@@ -358,11 +358,75 @@ export function DashboardPage() {
           icon={AlertTriangle}
           iconColor="text-amber-400"
           iconBg="bg-amber-500/10"
-          value={summary?.lowQuotaCount ?? 0}
-          label="System Alerts"
-          status={{ text: (summary?.lowQuotaCount ?? 0) === 0 ? 'SYSTEM OK' : 'ATTENTION', good: (summary?.lowQuotaCount ?? 0) === 0 }}
+          value={(() => {
+            const rl = summary?.rateLimitedCount ?? 0;
+            const ex = summary?.exhaustedCount ?? 0;
+            const low = summary?.lowQuotaCount ?? 0;
+            if (rl === 0 && ex === 0 && low === 0) return '0';
+            const parts = [];
+            if (rl > 0) parts.push(`${rl} RL`);
+            if (ex > 0) parts.push(`${ex} EX`);
+            if (low > 0 && low !== rl + ex) parts.push(`${low} LOW`);
+            return parts.length > 0 ? parts.join(' / ') : '0';
+          })()}
+          label="Alerts (RL/EX/LOW)"
+          status={(() => {
+            const rl = summary?.rateLimitedCount ?? 0;
+            const ex = summary?.exhaustedCount ?? 0;
+            const low = summary?.lowQuotaCount ?? 0;
+            const hasIssues = rl > 0 || ex > 0 || low > 0;
+            return {
+              text: hasIssues ? (rl > 0 ? 'RATE-LIMITED' : ex > 0 ? 'EXHAUSTED' : 'LOW QUOTA') : 'ALL CLEAR',
+              good: !hasIssues
+            };
+          })()}
         />
       </div>
+
+      {/* Language Server Account (shown separately when connected) */}
+      {isConnected && (
+        <div className="glass-card p-4 animate-fade-in-up" style={{ animationDelay: '50ms' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="w-4 h-4 text-yellow-400" />
+            <h3 className="text-sm font-bold text-text-primary uppercase tracking-wider">
+              IDE Account (VS Code Extension)
+            </h3>
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <Radio className="w-2.5 h-2.5 animate-pulse" /> Live
+            </span>
+          </div>
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <User className="w-3.5 h-3.5 text-text-muted" />
+              <span className="text-text-secondary">{userInfo?.email || 'Unknown'}</span>
+              {userInfo?.tier && (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  {userInfo.tier}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-4 ml-auto">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-text-muted">Gemini:</span>
+                <span className={`font-bold ${lsGeminiQuota !== null && lsGeminiQuota >= 50 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {lsGeminiQuota !== null ? `${lsGeminiQuota}%` : '-'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Bot className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="text-text-muted">Claude:</span>
+                <span className={`font-bold ${lsClaudeQuota !== null && lsClaudeQuota >= 50 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {lsClaudeQuota !== null ? `${lsClaudeQuota}%` : '-'}
+                </span>
+              </div>
+            </div>
+          </div>
+          <p className="text-[10px] text-text-muted mt-2">
+            This shows quota for the account logged into your VS Code Antigravity extension, which may differ from fleet accounts.
+          </p>
+        </div>
+      )}
 
       {/* Quota Time Windows */}
       <div className="animate-fade-in-up" style={{ animationDelay: '100ms' }}>
