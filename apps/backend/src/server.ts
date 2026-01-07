@@ -1782,101 +1782,7 @@ app.get('/api/quota-groups/:modelId', (req, res) => {
   }
 });
 
-// ==================== Token Rotation API ====================
 
-app.get('/api/rotation/config', (req, res) => {
-  try {
-    const config = accountsService.getRotationConfig();
-    res.json({ success: true, data: config });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.put('/api/rotation/config', (req, res) => {
-  try {
-    const updates = req.body;
-    accountsService.setRotationConfig(updates);
-    const config = accountsService.getRotationConfig();
-    res.json({ success: true, data: config });
-  } catch (error: any) {
-    res.status(400).json({ success: false, error: error.message });
-  }
-});
-
-app.get('/api/rotation/stats', (req, res) => {
-  try {
-    const stats = accountsService.getRotationStats();
-    res.json({ success: true, data: stats });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.get('/api/rotation/select/:family', (req, res) => {
-  try {
-    const family = req.params.family as 'claude' | 'gemini';
-    if (family !== 'claude' && family !== 'gemini') {
-      res.status(400).json({ success: false, error: 'Invalid family. Must be claude or gemini' });
-      return;
-    }
-
-    const quotas = quotaService.getCachedQuotas();
-    const quotaMap = new Map<string, { claudePercent: number; geminiPercent: number }>();
-    for (const q of quotas) {
-      quotaMap.set(q.email, {
-        claudePercent: q.claudeQuotaPercent ?? 0,
-        geminiPercent: q.geminiQuotaPercent ?? 0
-      });
-    }
-    accountsService.updateQuotaCache(quotaMap);
-
-    const result = accountsService.selectAccountForFamily(family);
-    if (!result) {
-      res.json({ success: false, error: 'No available accounts for this family', data: null });
-      return;
-    }
-    res.json({ success: true, data: result });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post('/api/rotation/rotate/:family', async (req, res) => {
-  try {
-    const family = req.params.family as 'claude' | 'gemini';
-    if (family !== 'claude' && family !== 'gemini') {
-      res.status(400).json({ success: false, error: 'Invalid family. Must be claude or gemini' });
-      return;
-    }
-
-    const quotas = quotaService.getCachedQuotas();
-    const quotaMap = new Map<string, { claudePercent: number; geminiPercent: number }>();
-    for (const q of quotas) {
-      quotaMap.set(q.email, {
-        claudePercent: q.claudeQuotaPercent ?? 0,
-        geminiPercent: q.geminiQuotaPercent ?? 0
-      });
-    }
-    accountsService.updateQuotaCache(quotaMap);
-
-    const result = await accountsService.rotateAndSetActive(family);
-    if (!result) {
-      res.json({ success: false, error: 'No available accounts for this family', data: null });
-      return;
-    }
-
-    wsManager.broadcast({
-      type: 'accounts_update',
-      data: { op: 'active_changed', email: result.email, family },
-      timestamp: Date.now()
-    });
-
-    res.json({ success: true, data: result });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 
 // ==================== Runway Prediction API ====================
 
@@ -1972,14 +1878,6 @@ accountsService.on('rate_limits_updated', () => {
 
 accountsService.on('rate_limit_cleared', ({ email, family }) => {
   wsManager.broadcastRateLimitChange(email, family, true);
-});
-
-accountsService.on('rotation', (data) => {
-  wsManager.broadcastNow({
-    type: 'accounts_update',
-    data: { op: 'rotation', ...data },
-    timestamp: Date.now()
-  });
 });
 
 quotaService.on('quotas_updated', (quotas: Array<import('./services/quotaService').AccountQuota>) => {

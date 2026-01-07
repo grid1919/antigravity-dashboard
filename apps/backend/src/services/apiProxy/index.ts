@@ -178,10 +178,8 @@ export class ApiProxyService {
     const accounts = this.tokenProvider.getAccounts();
     if (accounts.length === 0) return null;
 
-    if (this.config.rotationStrategy === 'round_robin') {
-      return this.tokenProvider.rotateAccount(family);
-    }
-
+    // Passthrough mode: always use the active account set by the plugin
+    // Account rotation is handled by opencode-antigravity-auth plugin
     return this.tokenProvider.getActiveAccount() || accounts[0];
   }
 
