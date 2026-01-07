@@ -6,6 +6,7 @@ interface UseQuotaResult {
   loading: boolean;
   error: string | null;
   cacheAge: number;
+  lastRefresh: number;
   refresh: () => Promise<void>;
 }
 
@@ -14,6 +15,7 @@ export function useQuota(pollingMs: number = 120000): UseQuotaResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cacheAge, setCacheAge] = useState(0);
+  const [lastRefresh, setLastRefresh] = useState(Date.now());
 
   const fetchQuotas = useCallback(async () => {
     try {
@@ -23,6 +25,7 @@ export function useQuota(pollingMs: number = 120000): UseQuotaResult {
       if (data.success) {
         setQuotas(data.data.quotas || []);
         setCacheAge(data.data.cacheAge || 0);
+        setLastRefresh(Date.now() - (data.data.cacheAge || 0));
         setError(null);
       } else {
         setError(data.error || 'Failed to fetch quotas');
@@ -43,6 +46,7 @@ export function useQuota(pollingMs: number = 120000): UseQuotaResult {
       if (data.success) {
         setQuotas(data.data || []);
         setCacheAge(0);
+        setLastRefresh(Date.now());
         setError(null);
       } else {
         setError(data.error || 'Failed to refresh quotas');
@@ -61,7 +65,7 @@ export function useQuota(pollingMs: number = 120000): UseQuotaResult {
     return () => clearInterval(interval);
   }, [fetchQuotas, pollingMs]);
 
-  return { quotas, loading, error, cacheAge, refresh };
+  return { quotas, loading, error, cacheAge, lastRefresh, refresh };
 }
 
 export function getQuotaForAccount(quotas: AccountQuota[], email: string): AccountQuota | null {

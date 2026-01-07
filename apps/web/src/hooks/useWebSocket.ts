@@ -7,6 +7,7 @@ interface UseWebSocketOptions {
   autoConnect?: boolean;
   reconnectInterval?: number;
   maxReconnectAttempts?: number;
+  token?: string;
 }
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
@@ -14,6 +15,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     autoConnect = true,
     reconnectInterval = 3000,
     maxReconnectAttempts = 10,
+    token,
   } = options;
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -110,7 +112,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     isManualClose.current = false;
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
+    const wsUrl = token 
+      ? `${wsProtocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`
+      : `${wsProtocol}//${window.location.host}/ws`;
+    const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
       console.log('[useWebSocket] Connected');

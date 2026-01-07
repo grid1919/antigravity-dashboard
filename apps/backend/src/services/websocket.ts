@@ -1,6 +1,8 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'http';
+import type { IncomingMessage } from 'http';
 import type { WSMessage, WSMessageType, LocalAccount, AccountDiff, DashboardStats } from '../types';
+import { isAuthEnabled, validateWebSocketAuth } from '../utils/authMiddleware';
 
 interface ClientInfo {
   ws: WebSocket;
@@ -22,7 +24,21 @@ export class WebSocketManager {
   private readonly CLIENT_TIMEOUT = 60000;
 
   initialize(server: Server, path: string = '/ws'): void {
-    this.wss = new WebSocketServer({ server, path });
+    const verifyClient = (info: { origin: string; req: IncomingMessage; secure: boolean }, callback: (result: boolean, code?: number, message?: string) => void) => {
+      if (!isAuthEnabled()) {
+        callback(true);
+        return;
+      }
+      
+      const isValid = validateWebSocketAuth(info.req.url);
+      if (isValid) {
+        callback(true);
+      } else {
+        callback(false, 401, 'Authentication required');
+      }
+    };
+
+    this.wss = new WebSocketServer({ server, path, verifyClient });
 
     this.wss.on('connection', (ws) => {
       this.handleConnection(ws);

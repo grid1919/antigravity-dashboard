@@ -1,7 +1,20 @@
 import { EventEmitter } from 'events';
 
-const ANTIGRAVITY_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
-const ANTIGRAVITY_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
+// Read env vars lazily to ensure dotenv has loaded
+const getClientId = () => {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    throw new Error('GOOGLE_CLIENT_ID environment variable is required. See README for setup instructions.');
+  }
+  return clientId;
+};
+const getClientSecret = () => {
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientSecret) {
+    throw new Error('GOOGLE_CLIENT_SECRET environment variable is required. See README for setup instructions.');
+  }
+  return clientSecret;
+};
 
 const ANTIGRAVITY_ENDPOINTS = [
   "https://cloudcode-pa.googleapis.com",
@@ -70,12 +83,54 @@ export class QuotaService extends EventEmitter {
   private tokenCache: Map<string, TokenCache> = new Map();
   private pollingInterval: NodeJS.Timeout | null = null;
   private pollingMs: number = 120000;
+  private retryConfig = {
+    maxRetries: 3,
+    baseDelayMs: 1000,
+    maxDelayMs: 60000,
+    jitterMs: 500,
+  };
+  private rateLimitState: Map<string, { until: number; retryCount: number }> = new Map();
 
   constructor(pollingMs?: number) {
     super();
     if (pollingMs) {
       this.pollingMs = pollingMs;
     }
+  }
+
+  setRetryConfig(config: Partial<typeof this.retryConfig>): void {
+    this.retryConfig = { ...this.retryConfig, ...config };
+  }
+
+  private calculateBackoffDelay(retryCount: number, retryAfterMs?: number): number {
+    if (retryAfterMs && retryAfterMs > 0) {
+      return Math.min(retryAfterMs, this.retryConfig.maxDelayMs);
+    }
+
+    const exponentialDelay = this.retryConfig.baseDelayMs * Math.pow(2, retryCount);
+    const jitter = Math.random() * this.retryConfig.jitterMs;
+    return Math.min(exponentialDelay + jitter, this.retryConfig.maxDelayMs);
+  }
+
+  private parseRetryAfter(response: Response): number | null {
+    const retryAfter = response.headers.get('Retry-After');
+    if (!retryAfter) return null;
+
+    const seconds = parseInt(retryAfter, 10);
+    if (!isNaN(seconds)) {
+      return seconds * 1000;
+    }
+
+    const date = Date.parse(retryAfter);
+    if (!isNaN(date)) {
+      return Math.max(0, date - Date.now());
+    }
+
+    return null;
+  }
+
+  private async sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   private async refreshAccessToken(refreshToken: string): Promise<string | null> {
@@ -91,8 +146,8 @@ export class QuotaService extends EventEmitter {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({
-          client_id: ANTIGRAVITY_CLIENT_ID,
-          client_secret: ANTIGRAVITY_CLIENT_SECRET,
+          client_id: getClientId(),
+          client_secret: getClientSecret(),
           refresh_token: refreshToken,
           grant_type: 'refresh_token',
         }),
@@ -124,31 +179,84 @@ export class QuotaService extends EventEmitter {
     const body = projectId ? { project: projectId } : {};
 
     for (const endpoint of ANTIGRAVITY_ENDPOINTS) {
-      try {
-        const response = await fetch(`${endpoint}/v1internal:fetchAvailableModels`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-            ...ANTIGRAVITY_HEADERS,
-          },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(15000),
-        });
+      let lastError: string = '';
+      
+      for (let attempt = 0; attempt <= this.retryConfig.maxRetries; attempt++) {
+        try {
+          const rateLimitKey = endpoint;
+          const rateLimitInfo = this.rateLimitState.get(rateLimitKey);
+          if (rateLimitInfo && rateLimitInfo.until > Date.now()) {
+            const waitTime = rateLimitInfo.until - Date.now();
+            console.log(`[QuotaService] Rate limited on ${endpoint}, waiting ${Math.round(waitTime/1000)}s...`);
+            await this.sleep(waitTime);
+          }
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.warn(`[QuotaService] Endpoint ${endpoint} returned ${response.status}: ${errorText}`);
-          continue;
+          const response = await fetch(`${endpoint}/v1internal:fetchAvailableModels`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+              ...ANTIGRAVITY_HEADERS,
+            },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(15000),
+          });
+
+          if (response.status === 429) {
+            const retryAfterMs = this.parseRetryAfter(response) || this.calculateBackoffDelay(attempt);
+            console.warn(`[QuotaService] 429 on ${endpoint}, attempt ${attempt + 1}/${this.retryConfig.maxRetries + 1}, retry in ${Math.round(retryAfterMs/1000)}s`);
+            
+            this.rateLimitState.set(rateLimitKey, {
+              until: Date.now() + retryAfterMs,
+              retryCount: attempt + 1,
+            });
+            
+            if (attempt < this.retryConfig.maxRetries) {
+              await this.sleep(retryAfterMs);
+              continue;
+            }
+            
+            lastError = `Rate limited after ${attempt + 1} attempts`;
+            break;
+          }
+
+          if (response.status >= 500 && response.status < 600) {
+            const backoffMs = this.calculateBackoffDelay(attempt);
+            console.warn(`[QuotaService] ${response.status} on ${endpoint}, attempt ${attempt + 1}, retry in ${Math.round(backoffMs/1000)}s`);
+            
+            if (attempt < this.retryConfig.maxRetries) {
+              await this.sleep(backoffMs);
+              continue;
+            }
+            
+            lastError = `Server error ${response.status} after ${attempt + 1} attempts`;
+            break;
+          }
+
+          if (!response.ok) {
+            lastError = `${response.status}: ${await response.text()}`;
+            break;
+          }
+
+          this.rateLimitState.delete(rateLimitKey);
+          const data = await response.json() as FetchModelsResponse;
+          return data;
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          lastError = message;
+          
+          if (attempt < this.retryConfig.maxRetries && message.includes('timeout')) {
+            const backoffMs = this.calculateBackoffDelay(attempt);
+            console.warn(`[QuotaService] Timeout on ${endpoint}, attempt ${attempt + 1}, retry in ${Math.round(backoffMs/1000)}s`);
+            await this.sleep(backoffMs);
+            continue;
+          }
+          
+          break;
         }
-
-        const data = await response.json() as FetchModelsResponse;
-        return data;
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        console.warn(`[QuotaService] Endpoint ${endpoint} failed:`, message);
-        continue;
       }
+      
+      console.warn(`[QuotaService] Endpoint ${endpoint} failed:`, lastError);
     }
 
     return null;
@@ -242,29 +350,40 @@ export class QuotaService extends EventEmitter {
     return result;
   }
 
+  /**
+   * Fetch quotas for all accounts in parallel using Promise.allSettled
+   * This is significantly faster than sequential fetching for multiple accounts
+   */
   async fetchAllQuotas(accounts: Array<{
     email: string;
     refreshToken: string;
     projectId?: string;
   }>): Promise<AccountQuota[]> {
-    console.log(`[QuotaService] Fetching quotas for ${accounts.length} accounts...`);
+    console.log(`[QuotaService] Fetching quotas for ${accounts.length} accounts in parallel...`);
+    const start = Date.now();
     
-    const results: AccountQuota[] = [];
-
-    for (const account of accounts) {
-      try {
-        const quota = await this.fetchQuotaForAccount(
+    // Fetch all quotas in parallel
+    const settledResults = await Promise.allSettled(
+      accounts.map(account => 
+        this.fetchQuotaForAccount(
           account.email,
           account.refreshToken,
           account.projectId
-        );
-        results.push(quota);
-        
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
+        )
+      )
+    );
+
+    // Process results
+    const results: AccountQuota[] = settledResults.map((result, index) => {
+      if (result.status === 'fulfilled') {
+        return result.value;
+      } else {
+        const account = accounts[index];
+        const message = result.reason instanceof Error 
+          ? result.reason.message 
+          : 'Unknown error';
         console.error(`[QuotaService] Error fetching quota for ${account.email}:`, message);
-        results.push({
+        return {
           email: account.email,
           projectId: account.projectId,
           lastFetched: Date.now(),
@@ -276,14 +395,16 @@ export class QuotaService extends EventEmitter {
           geminiQuotaPercent: null,
           claudeResetTime: null,
           geminiResetTime: null,
-        });
+        };
       }
-    }
+    });
 
     this.cache.lastFullFetch = Date.now();
     this.emit('quotas_updated', results);
     
-    console.log(`[QuotaService] Fetched quotas for ${results.length} accounts`);
+    const elapsed = Date.now() - start;
+    const successCount = results.filter(r => !r.fetchError).length;
+    console.log(`[QuotaService] Fetched ${successCount}/${results.length} quotas in ${elapsed}ms`);
     return results;
   }
 
@@ -293,6 +414,10 @@ export class QuotaService extends EventEmitter {
 
   getCachedQuota(email: string): AccountQuota | null {
     return this.cache.accounts.get(email) || null;
+  }
+
+  getCache(): QuotaCache {
+    return this.cache;
   }
 
   getCacheAge(): number {
@@ -332,12 +457,53 @@ export class QuotaService extends EventEmitter {
     }
   }
 
+  /**
+   * Clear the token cache to force re-authentication
+   * Useful when tokens may have been revoked or need refresh
+   */
+  clearTokenCache(): void {
+    this.tokenCache.clear();
+    console.log('[QuotaService] Token cache cleared');
+  }
+
+  /**
+   * Clear quota cache for specific accounts or all
+   */
+  clearQuotaCache(emails?: string[]): void {
+    if (emails) {
+      for (const email of emails) {
+        this.cache.accounts.delete(email);
+      }
+      console.log(`[QuotaService] Cleared quota cache for ${emails.length} accounts`);
+    } else {
+      this.cache.accounts.clear();
+      this.cache.lastFullFetch = 0;
+      console.log('[QuotaService] Full quota cache cleared');
+    }
+  }
+
   async forceRefresh(accounts: Array<{
     email: string;
     refreshToken: string;
     projectId?: string;
   }>): Promise<AccountQuota[]> {
     return this.fetchAllQuotas(accounts);
+  }
+
+  getRateLimitStatus(): Array<{ endpoint: string; until: number; retryCount: number }> {
+    const now = Date.now();
+    return Array.from(this.rateLimitState.entries())
+      .filter(([_, info]) => info.until > now)
+      .map(([endpoint, info]) => ({
+        endpoint,
+        until: info.until,
+        retryCount: info.retryCount,
+      }));
+  }
+
+  clearRateLimitState(): void {
+    this.rateLimitState.clear();
+    console.log('[QuotaService] Rate limit state cleared');
   }
 }
 

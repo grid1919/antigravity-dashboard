@@ -18,3 +18,8 @@ logs/
 .DS_Store
 Thumbs.db
 .cache/
+
+# Claude/AI assistant files
+.claude/
+.sisyphus/
+commands/

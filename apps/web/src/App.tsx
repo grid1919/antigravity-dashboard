@@ -1,224 +1,94 @@
 import { useEffect, useState } from 'react';
 import { useDashboardStore } from './stores/useDashboardStore';
 import { useWebSocket } from './hooks/useWebSocket';
-import { useQuota, getQuotaForAccount, getQuotaColor, formatResetTime } from './hooks/useQuota';
-import type { LocalAccount, AccountQuota } from './types';
-import { RefreshCw, Activity, Zap, Clock, ShieldCheck, Mail } from 'lucide-react';
-
-// Helper for burn rate
-function formatBurnRate(tokens: number | undefined) {
-  if (!tokens) return '0 T/h';
-  if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M T/h`;
-  if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}K T/h`;
-  return `${tokens} T/h`;
-}
-
-function QuotaBar({ percent, label }: { percent: number | null; label: string }) {
-  const color = getQuotaColor(percent);
-  const displayPercent = percent ?? 100;
-  
-  return (
-    <div className="flex-1">
-      <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-wider mb-1.5">
-        <span className="text-text-secondary">{label}</span>
-        <span className={`${percent !== null ? 'text-text-primary' : 'text-text-muted'}`}>
-          {percent !== null ? `${percent}%` : 'N/A'}
-        </span>
-      </div>
-      <div className="progress-track">
-        <div 
-          className={`progress-fill ${color}`}
-          style={{ width: `${displayPercent}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function AccountRow({ 
-  account, 
-  quota, 
-  index 
-}: { 
-  account: LocalAccount; 
-  quota: AccountQuota | null;
-  index: number;
-}) {
-  const isActive = account.isActive;
-  
-  let statusClass = 'ok';
-  let statusText = 'Active';
-  
-  if (account.status === 'rate_limited_all') {
-    statusClass = 'error';
-    statusText = 'Limited';
-  } else if (account.status.startsWith('rate_limited')) {
-    statusClass = 'warn';
-    statusText = 'Partial';
-  }
-
-  return (
-    <div className="glass-card account-grid-row mb-3 last:mb-0 group">
-      {/* Account Info */}
-      <div className="flex items-center gap-4 min-w-[200px]">
-        <div className={`p-2 rounded-full ${isActive ? 'bg-blue-500/10 text-blue-400' : 'bg-white/5 text-text-muted'}`}>
-          <Mail size={16} />
-        </div>
-        <div className="overflow-hidden">
-          <div className="text-text-primary text-sm font-semibold flex items-center gap-2 truncate" title={account.email}>
-            {account.email}
-            {isActive && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold uppercase tracking-wider flex-shrink-0">
-                Current
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-      
-      {/* Burn Rate */}
-      <div className="text-right pr-6">
-         <div className="text-sm font-mono text-text-primary">{formatBurnRate(account.burnRate1h)}</div>
-         <div className="text-[10px] text-text-secondary uppercase tracking-wider">Burn Rate</div>
-      </div>
-
-      {/* Status */}
-      <div>
-        <span className={`status-pill ${statusClass}`}>
-          {statusText}
-        </span>
-      </div>
-      
-      {/* Quotas */}
-      <div className="pr-4">
-        <QuotaBar percent={quota?.claudeQuotaPercent ?? null} label="Claude" />
-      </div>
-      <div className="pr-4">
-        <QuotaBar percent={quota?.geminiQuotaPercent ?? null} label="Gemini" />
-      </div>
-      
-      {/* Reset */}
-      <div className="text-right">
-        <div className="font-mono text-xs text-text-secondary group-hover:text-white transition-colors">
-          {formatResetTime(quota?.claudeResetTime || quota?.geminiResetTime || null)}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatsCard({ 
-  label, 
-  value, 
-  subtext,
-  icon: Icon,
-  trend 
-}: { 
-  label: string; 
-  value: string | number; 
-  subtext?: string;
-  icon: any;
-  trend?: 'up' | 'down' | 'neutral';
-}) {
-  return (
-    <div className="glass-card p-5 relative overflow-hidden">
-      <div className="absolute top-0 right-0 p-3 opacity-5">
-        <Icon size={48} />
-      </div>
-      <div className="flex items-start justify-between mb-4">
-        <div className="text-label flex items-center gap-2">
-          <Icon size={14} className="opacity-70" />
-          {label}
-        </div>
-      </div>
-      <div className="text-value mb-1">{value}</div>
-      {subtext && <div className="text-xs text-text-muted font-medium">{subtext}</div>}
-    </div>
-  );
-}
+import { useQuota } from './hooks/useQuota';
+import { useBurnRate } from './hooks/useBurnRate';
+import { useAuth } from './hooks/useAuth';
+import { RefreshCw, Activity, Zap, LayoutDashboard, Users, Settings, Moon, Sun, FileText } from 'lucide-react';
+import { DashboardPage } from './components/DashboardPage';
+import { AccountsPage } from './components/AccountsPage';
+import { LogsPage } from './components/LogsPage';
+import { SettingsPage } from './components/SettingsPage';
+import { AuthPrompt } from './components/AuthPrompt';
+import { LastRefreshIndicator } from './components/LastRefreshIndicator';
+import type { PageType } from './types';
 
 function App() {
   const { 
     localAccounts,
     wsConnected,
     setLocalAccounts,
+    currentPage,
+    setCurrentPage,
+    preferences,
+    updatePreferences,
   } = useDashboardStore();
 
-  const { quotas, loading: quotaLoading, refresh: refreshQuotas } = useQuota(120000);
-  const [refreshing, setRefreshing] = useState(false);
+  const { token, setToken, authRequired, authError, isAuthenticated } = useAuth();
+  const { refresh: refreshQuotas, lastRefresh: quotaLastRefresh } = useQuota(120000) as { refresh: () => Promise<void>; lastRefresh: number | null };
+  const { refresh: refreshBurnRates, lastRefresh: burnLastRefresh } = useBurnRate(60000);
   
-  const [sortBy, setSortBy] = useState<'claudeQuota' | 'geminiQuota' | 'burnRate' | 'email'>('burnRate');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-
-  const handleSort = (field: typeof sortBy) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('desc');
-    }
-  };
-
-  const sortedAccounts = [...localAccounts].sort((a, b) => {
-    let valA: string | number = 0;
-    let valB: string | number = 0;
-    
-    if (sortBy === 'email') {
-       valA = a.email; valB = b.email;
-    } else if (sortBy === 'burnRate') {
-       valA = a.burnRate1h || 0; valB = b.burnRate1h || 0;
-    } else {
-       const quotaA = getQuotaForAccount(quotas, a.email);
-       const quotaB = getQuotaForAccount(quotas, b.email);
-       if (sortBy === 'claudeQuota') {
-         valA = quotaA?.claudeQuotaPercent ?? -1;
-         valB = quotaB?.claudeQuotaPercent ?? -1;
-       } else {
-         valA = quotaA?.geminiQuotaPercent ?? -1;
-         valB = quotaB?.geminiQuotaPercent ?? -1;
-       }
-    }
-
-    if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
-    if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  useWebSocket({ autoConnect: true });
+  const [refreshing, setRefreshing] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  
+  useWebSocket({ autoConnect: isAuthenticated, token: token || undefined });
 
   useEffect(() => {
-    fetchAccounts();
-  }, []);
+    const theme = preferences.theme;
+    if (theme === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+    } else {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+  }, [preferences.theme]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchAccounts();
+    }
+  }, [isAuthenticated, token]);
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch('/api/accounts/local');
+      const headers: HeadersInit = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch('/api/accounts/local', { headers });
+      
+      if (response.status === 401) {
+        setInitialLoading(false);
+        return;
+      }
+      
       const data = await response.json();
       if (data.success && data.data) {
         setLocalAccounts(data.data);
       }
     } catch (error) {
       console.error('Failed to fetch accounts:', error);
+    } finally {
+      setInitialLoading(false);
     }
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchAccounts(), refreshQuotas()]);
+    await Promise.all([fetchAccounts(), refreshQuotas(), refreshBurnRates()]);
     setRefreshing(false);
   };
 
-  const availableCount = localAccounts.filter(a => a.status === 'available').length;
-  const limitedCount = localAccounts.filter(a => a.status !== 'available').length;
+  const toggleTheme = () => {
+    const newTheme = preferences.theme === 'dark' ? 'light' : 'dark';
+    updatePreferences({ theme: newTheme });
+  };
 
-  const avgClaudeQuota = quotas.length > 0 
-    ? Math.round(quotas.reduce((sum, q) => sum + (q.claudeQuotaPercent ?? 100), 0) / quotas.length)
-    : null;
-  const avgGeminiQuota = quotas.length > 0
-    ? Math.round(quotas.reduce((sum, q) => sum + (q.geminiQuotaPercent ?? 100), 0) / quotas.length)
-    : null;
+  if (authRequired && !token) {
+    return <AuthPrompt onLogin={setToken} error={authError} />;
+  }
 
-  if (localAccounts.length === 0) {
+  if (initialLoading || localAccounts.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
         <div className="text-center">
@@ -232,112 +102,93 @@ function App() {
     );
   }
 
+  const navItems: { key: PageType; label: string; icon: typeof LayoutDashboard }[] = [
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { key: 'accounts', label: 'Accounts', icon: Users },
+    { key: 'logs', label: 'Logs', icon: FileText },
+    { key: 'settings', label: 'Settings', icon: Settings },
+  ];
+
   return (
     <div className="min-h-screen pb-12">
       {/* Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl border-b border-white/5 bg-black/20">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                <Zap size={18} className="text-white" />
-             </div>
-             <div>
-               <h1 className="text-lg font-bold text-white tracking-tight leading-none bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">
-                 Antigravity
-               </h1>
-               <p className="text-[10px] font-bold text-blue-400 tracking-widest uppercase mt-0.5">Live Monitor</p>
-             </div>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${wsConnected ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
-              <div className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-red-400'}`} />
-              <span className="text-xs font-bold uppercase tracking-wide">{wsConnected ? 'System Online' : 'Disconnected'}</span>
+      <header className="sticky top-0 z-50 backdrop-blur-xl border-b border-cyan-500/10 bg-black/40">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+               <div className="w-8 h-8 flex items-center justify-center border border-cyan-500/50 bg-cyan-500/10 shadow-[0_0_10px_rgba(6,182,212,0.3)]">
+                  <Zap size={18} className="text-cyan-400" />
+               </div>
+               <div>
+                 <h1 className="text-xl font-bold text-white tracking-widest leading-none uppercase font-mono">
+                   Antigravity
+                 </h1>
+                 <p className="text-[10px] font-bold text-cyan-400 tracking-[0.2em] uppercase mt-0.5">System Monitor</p>
+               </div>
             </div>
             
-            <button 
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="btn-icon transition-transform active:scale-95"
-              title="Refresh Data"
-            >
-              <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
-            </button>
+            <div className="flex items-center gap-6">
+              <div className="hidden md:flex flex-col items-end gap-1">
+                <LastRefreshIndicator timestamp={quotaLastRefresh || Date.now()} label="Quota" />
+                <LastRefreshIndicator timestamp={burnLastRefresh || Date.now()} label="Usage" />
+              </div>
+
+              <div className="h-8 w-px bg-cyan-500/20 hidden md:block" />
+
+              <div className="flex items-center gap-4">
+                <div className={`flex items-center gap-2 px-3 py-1 border ${wsConnected ? 'bg-green-500/5 border-green-500/30 text-green-400' : 'bg-red-500/5 border-red-500/30 text-red-400'}`}>
+                  <div className={`w-1.5 h-1.5 ${wsConnected ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]' : 'bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.8)]'}`} />
+                  <span className="text-xs font-bold uppercase tracking-widest font-mono">{wsConnected ? 'Online' : 'Offline'}</span>
+                </div>
+                
+                <button
+                  onClick={toggleTheme}
+                  className="btn-icon rounded-none"
+                  title="Toggle Theme"
+                >
+                  {preferences.theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </button>
+                
+                <button 
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="btn-icon rounded-none"
+                  title="Refresh All Data"
+                >
+                  <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+            </div>
           </div>
+
+          {/* Navigation */}
+          <nav className="flex items-center gap-1 border-t border-cyan-500/10 pt-4">
+            {navItems.map(item => (
+              <button 
+                key={item.key}
+                onClick={() => setCurrentPage(item.key)}
+                className={`flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-widest transition-all font-mono border border-transparent ${
+                  currentPage === item.key 
+                    ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.1)]' 
+                    : 'text-text-secondary hover:text-white hover:bg-white/5 hover:border-white/10'
+                }`}
+              >
+                <item.icon size={14} />
+                {item.label}
+              </button>
+            ))}
+          </nav>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          <StatsCard 
-            label="Total Accounts" 
-            value={localAccounts.length}
-            subtext={`${availableCount} operational`}
-            icon={ShieldCheck}
-          />
-          <StatsCard 
-            label="Rate Limited" 
-            value={limitedCount}
-            subtext={limitedCount > 0 ? 'Action required' : 'Systems nominal'}
-            icon={Activity}
-          />
-          <StatsCard 
-            label="Avg Claude Quota" 
-            value={avgClaudeQuota !== null ? `${avgClaudeQuota}%` : '-'}
-            subtext="Global average"
-            icon={Zap}
-          />
-          <StatsCard 
-            label="Avg Gemini Quota" 
-            value={avgGeminiQuota !== null ? `${avgGeminiQuota}%` : '-'}
-            subtext="Global average"
-            icon={Zap}
-          />
-        </div>
-
-        {/* Account List Header */}
-        <div className="account-grid-header text-label select-none">
-          <div onClick={() => handleSort('email')} className="cursor-pointer hover:text-white flex items-center gap-1">
-            Account Details {sortBy === 'email' && (sortOrder === 'asc' ? '↑' : '↓')}
-          </div>
-          <div onClick={() => handleSort('burnRate')} className="cursor-pointer hover:text-white flex items-center justify-end gap-1 pr-6 text-right">
-            Burn Rate {sortBy === 'burnRate' && (sortOrder === 'asc' ? '↑' : '↓')}
-          </div>
-          <div>Status</div>
-          <div onClick={() => handleSort('claudeQuota')} className="cursor-pointer hover:text-white flex items-center gap-1">
-            Claude Load {sortBy === 'claudeQuota' && (sortOrder === 'asc' ? '↑' : '↓')}
-          </div>
-          <div onClick={() => handleSort('geminiQuota')} className="cursor-pointer hover:text-white flex items-center gap-1">
-            Gemini Load {sortBy === 'geminiQuota' && (sortOrder === 'asc' ? '↑' : '↓')}
-          </div>
-          <div className="text-right flex items-center justify-end gap-1">
-            <Clock size={12} />
-            Reset
-          </div>
-        </div>
-
-        {/* Floating Rows */}
-        <div className="space-y-1">
-          {sortedAccounts.map((account, index) => (
-            <AccountRow 
-              key={account.email}
-              account={account}
-              quota={getQuotaForAccount(quotas, account.email)}
-              index={index}
-            />
-          ))}
-        </div>
-
-        {quotas.some(q => q.fetchError) && (
-          <div className="mt-8 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm flex items-center justify-center gap-2">
-            <Activity size={16} />
-            Some data streams are experiencing latency. Retrying automatically.
-          </div>
-        )}
+        {currentPage === 'dashboard' && <DashboardPage />}
+        {currentPage === 'accounts' && <AccountsPage />}
+        {currentPage === 'logs' && <LogsPage />}
+        {currentPage === 'settings' && <SettingsPage />}
       </main>
       
-      <div className="fixed bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-bg-primary to-transparent pointer-events-none" />
+      <div className="fixed bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-bg-primary to-transparent pointer-events-none -z-10" />
     </div>
   );
 }

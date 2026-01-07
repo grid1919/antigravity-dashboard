@@ -1,6 +1,31 @@
 {
-  "name": "antigravity-dashboard-root",
-  "private": true,
+  "name": "antigravity-dashboard",
+  "version": "1.0.0",
+  "description": "Real-time monitoring dashboard for Google Cloud accounts using the Antigravity OAuth flow. Track API quotas, usage limits, and reset times with Claude/OpenAI compatible API proxy.",
+
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NoeFabris/antigravity-dashboard.git"
+  },
+  "homepage": "https://github.com/NoeFabris/antigravity-dashboard#readme",
+  "bugs": {
+    "url": "https://github.com/NoeFabris/antigravity-dashboard/issues"
+  },
+  "keywords": [
+    "antigravity",
+    "opencode",
+    "google-cloud",
+    "quota-monitoring",
+    "claude",
+    "gemini",
+    "api-proxy",
+    "oauth",
+    "dashboard"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "workspaces": [
     "apps/*"
   ],
