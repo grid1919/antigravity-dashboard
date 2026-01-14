@@ -23,3 +23,10 @@ Thumbs.db
 .claude/
 .sisyphus/
 commands/
+
+# bv (beads viewer) local config and caches
+.bv/
+
+# pnpm
+.pnpm-store/
+package-lock.json
