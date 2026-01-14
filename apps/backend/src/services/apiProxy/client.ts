@@ -159,7 +159,6 @@ export class AntigravityClient {
           if (this.isRetryable(response.status) && attempt < this.config.maxRetries) {
             const delay = this.calculateRetryDelay(attempt, retryInfo?.retryAfter);
             console.log(`[AntigravityClient] Stream ${response.status} error, retrying in ${delay}ms (attempt ${attempt + 1}/${this.config.maxRetries})`);
-            safeReleaseBuffer();
             await sleep(delay);
             continue;
           }

@@ -146,16 +146,11 @@ function getRawAccountsForQuota(): Array<{ email: string; refreshToken: string; 
 
 initializeProxyRoutes(
   async (refreshToken: string) => {
-    try {
-      const cached = quotaService['tokenCache'].get(refreshToken);
-      if (cached && cached.expiresAt > Date.now() + 60000) {
-        return cached.accessToken;
-      }
-      return await quotaService['refreshAccessToken'](refreshToken);
-    } catch (error) {
-      console.error('[Proxy] Token refresh failed:', error);
+    const accessToken = await quotaService.getAccessToken(refreshToken);
+    if (!accessToken) {
       throw new Error('Failed to obtain access token');
     }
+    return accessToken;
   },
   () => {
     const raw = getRawAccountsForQuota();
@@ -441,6 +436,7 @@ setInterval(() => {
 }, 60 * 1000);
 
 let activeAuthServer: ReturnType<typeof createServer> | null = null;
+let activeAuthServerCloseTimeout: NodeJS.Timeout | null = null;
 
 app.get('/api/auth/google/url', (req, res) => {
   try {
@@ -448,6 +444,12 @@ app.get('/api/auth/google/url', (req, res) => {
     if (!clientId) {
       res.status(500).json({ success: false, error: 'GOOGLE_CLIENT_ID not configured' });
       return;
+    }
+
+    // Cancel any pending server close timeout when a new auth session starts
+    if (activeAuthServerCloseTimeout) {
+      clearTimeout(activeAuthServerCloseTimeout);
+      activeAuthServerCloseTimeout = null;
     }
 
     const state = base64URLEncode(crypto.randomBytes(16));
@@ -551,21 +553,25 @@ app.get('/api/auth/google/url', (req, res) => {
             res.writeHead(200, { 'Content-Type': 'text/html' });
             res.end(`<!DOCTYPE html><html><head><title>Success</title><style>body{font-family:system-ui,sans-serif;background:#0f172a;color:#fff;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}</style></head><body><div style="text-align:center"><h1 style="color:#4ade80">Authentication Successful</h1><p>Account ${email} added.</p><script>setTimeout(()=>window.close(),2000)</script></div></body></html>`);
 
-            setTimeout(() => {
+            activeAuthServerCloseTimeout = setTimeout(() => {
               if (activeAuthServer) {
                 activeAuthServer.close();
                 activeAuthServer = null;
               }
+              activeAuthServerCloseTimeout = null;
             }, 5000);
 
-          } catch (e: any) {
+          } catch (e: unknown) {
+            const errorMessage = e instanceof Error ? e.message : String(e);
+            const escapedMessage = errorMessage.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             res.writeHead(400, { 'Content-Type': 'text/html' });
-            res.end(`<!DOCTYPE html><html><head><title>Error</title><style>body{font-family:system-ui,sans-serif;background:#0f172a;color:#f87171;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}</style></head><body><div style="text-align:center;max-width:400px"><h1>Authentication Failed</h1><p>${e.message}</p></div></body></html>`);
-            setTimeout(() => {
+            res.end(`<!DOCTYPE html><html><head><title>Error</title><style>body{font-family:system-ui,sans-serif;background:#0f172a;color:#f87171;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}</style></head><body><div style="text-align:center;max-width:400px"><h1>Authentication Failed</h1><p>${escapedMessage}</p></div></body></html>`);
+            activeAuthServerCloseTimeout = setTimeout(() => {
               if (activeAuthServer) {
                 activeAuthServer.close();
                 activeAuthServer = null;
               }
+              activeAuthServerCloseTimeout = null;
             }, 5000);
           }
         } else {

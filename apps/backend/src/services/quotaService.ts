@@ -507,6 +507,15 @@ export class QuotaService extends EventEmitter {
     this.rateLimitState.clear();
     console.log('[QuotaService] Rate limit state cleared');
   }
+
+  /**
+   * Get a valid access token for the given refresh token.
+   * Uses cached token if valid, otherwise refreshes from Google OAuth.
+   * This method encapsulates token caching and refresh logic.
+   */
+  async getAccessToken(refreshToken: string): Promise<string | null> {
+    return this.refreshAccessToken(refreshToken);
+  }
 }
 
 let quotaServiceInstance: QuotaService | null = null;
