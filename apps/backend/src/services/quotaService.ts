@@ -441,9 +441,10 @@ export class QuotaService extends EventEmitter {
     }
 
     this.pollingInFlight = true;
-    this.fetchAllQuotas(getAccounts()).catch(err => {
+    this.fetchAllQuotas(getAccounts()).then(() => {
+      this.pollingInFlight = false;
+    }).catch(err => {
       console.error('[QuotaService] Initial quota fetch failed:', err);
-    }).finally(() => {
       this.pollingInFlight = false;
     });
 

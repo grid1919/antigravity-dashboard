@@ -687,7 +687,7 @@ export class ApiProxyService {
         type: 'function' as const,
         function: {
           name: originalName,
-          arguments: tc.function.arguments,
+          arguments: JSON.stringify(safeParseToolArgs(tc.function.arguments)),
         },
       };
     });
